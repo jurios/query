@@ -1,0 +1,25 @@
+{
+  "name": "${localWorkspaceFolderBasename} devcontainer",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "app",
+  "runServices": [
+    "app"
+  ],
+  "overrideCommand": true,
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "astral-sh.ty",
+        "charliermarsh.ruff"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+  "postCreateCommand": "uv sync",
+  "containerUser": "developer",
+  "remoteUser": "developer"
+}
