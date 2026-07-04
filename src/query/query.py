@@ -1,10 +1,13 @@
 from typing import Any, Self, TypeVar
 
 import sqlalchemy
+from pydantic import BaseModel
 from sqlalchemy import ColumnElement
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, SQLModel, and_, func, select
 from sqlmodel.sql.expression import SelectOfScalar
+
+from query import BaseFilter
 
 ModelT = TypeVar("ModelT", bound=SQLModel)
 
@@ -27,6 +30,10 @@ class BaseQuery[ModelT: SQLModel]:
 
     def where(self, *conditions: ColumnElement | Any) -> Self:
         self._conditions.extend(conditions)
+        return self
+
+    def filter(self, filter_class: type[BaseFilter], params: BaseModel) -> Self:
+        filter_class().apply(self, params)
         return self
 
     def limit(self, value: int) -> Self:
