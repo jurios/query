@@ -91,6 +91,14 @@ class BaseQuery[ModelT: SQLModel]:
         result = self._session.exec(stmt)
         return result.rowcount
 
+    def delete(self) -> int:
+        stmt = sqlalchemy.delete(self._model)
+        if self._conditions:
+            stmt = stmt.where(and_(*self._conditions))
+
+        result = self._session.exec(stmt)
+        return result.rowcount
+
     def build(self) -> SelectOfScalar[ModelT]:
         statement = select(self._model).select_from(self._model)
 
