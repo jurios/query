@@ -1,0 +1,42 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info
+
+# =========================
+# Virtual environments
+# =========================
+.venv/
+venv/
+env/
+
+# =========================
+# uv
+# =========================
+.uv/
+.python-version
+
+# =========================
+# Testing / coverage
+# =========================
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+
+# =========================
+# Lint / type check
+# =========================
+.mypy_cache/
+.ruff_cache/
+.pyre/
+
+
+# =========================
+# Celery
+# =========================
+celerybeat-schedule*
