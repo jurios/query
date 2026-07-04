@@ -11,6 +11,7 @@ from query import BaseQuery
 
 
 class User(SQLModel, table=True):
+    __tablename__ = "delete_user"
     id: int | None = Field(default=None, primary_key=True)
     username: str
     email: str

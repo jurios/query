@@ -6,20 +6,20 @@ from query.query import BaseQuery
 
 
 class Publisher(SQLModel, table=True):
-    __tablename__ = "publisher"
+    __tablename__ = "join_publisher"
 
     id: int | None = Field(default=None, primary_key=True)
 
 
 class Author(SQLModel, table=True):
-    __tablename__ = "author"
+    __tablename__ = "join_author"
 
     id: int | None = Field(default=None, primary_key=True)
     publisher_id: int | None = Field(default=None, foreign_key="publisher.id")
 
 
 class Book(SQLModel, table=True):
-    __tablename__ = "book"
+    __tablename__ = "join_book"
 
     id: int | None = Field(default=None, primary_key=True)
     author_id: int | None = Field(default=None, foreign_key="author.id")
