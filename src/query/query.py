@@ -1,10 +1,12 @@
-from typing import Any, Self
+from typing import Any, Self, TypeVar
 
 import sqlalchemy
 from sqlalchemy import ColumnElement
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, SQLModel, and_, func, select
 from sqlmodel.sql.expression import SelectOfScalar
+
+ModelT = TypeVar("ModelT", bound=SQLModel)
 
 
 class BaseQuery[ModelT: SQLModel]:
