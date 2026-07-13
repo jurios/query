@@ -16,6 +16,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+
+    env:
+      # Force uv to use the matrix interpreter instead of the version pinned
+      # in .python-version, so every matrix cell actually runs its own version.
+      UV_PYTHON: ${{ matrix.python-version }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -28,7 +38,7 @@ jobs:
       - name: Configure Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: "3.14"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: uv sync --locked
