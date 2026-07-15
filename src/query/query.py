@@ -1,18 +1,18 @@
+from __future__ import annotations
+
 from typing import Any, Self, TypeVar
 
 import sqlalchemy
 from pydantic import BaseModel
-from sqlalchemy import ColumnElement
-from sqlalchemy.orm import selectinload
-from sqlmodel import Session, SQLModel, and_, func, select
-from sqlmodel.sql.expression import SelectOfScalar
+from sqlalchemy import ColumnElement, Select, and_, func, select
+from sqlalchemy.orm import Session, selectinload
 
-from query import BaseFilter
+from query.filter import BaseFilter
 
-ModelT = TypeVar("ModelT", bound=SQLModel)
+ModelT = TypeVar("ModelT")
 
 
-class BaseQuery[ModelT: SQLModel]:
+class BaseQuery[ModelT]:
     def __init__(self, session: Session, model: type[ModelT]) -> None:
         self._session = session
         self._model = model
@@ -21,7 +21,6 @@ class BaseQuery[ModelT: SQLModel]:
         self._eager_loads: list = []
         self._limit: int | None = None
         self._offset: int | None = None
-        self._joins: list = []
         self._order_by: list = []
 
     def join(self, *targets) -> Self:
@@ -47,17 +46,14 @@ class BaseQuery[ModelT: SQLModel]:
     def eager(self, *relationships) -> Self:
         if not relationships:
             return self
-
         load = selectinload(relationships[0])  # type: ignore[arg-type]
         for relationship in relationships[1:]:
             load = load.selectinload(relationship)  # type: ignore[arg-type]
-
         self._eager_loads.append(load)
         return self
 
     def order_by(self, *columns: Any) -> Self:
         self._order_by.extend(columns)
-
         return self
 
     def get(self, id: Any) -> ModelT | None:
@@ -67,57 +63,45 @@ class BaseQuery[ModelT: SQLModel]:
         return self._session.get_one(self._model, id)
 
     def first(self) -> ModelT | None:
-        return self._session.exec(self.build()).first()
+        return self._session.execute(self.build()).scalars().first()
 
     def one(self) -> ModelT:
-        return self._session.exec(self.build()).one()
+        return self._session.execute(self.build()).scalars().one()
 
     def all(self) -> list[ModelT]:
-        return list(self._session.exec(self.build()).all())
+        return list(self._session.execute(self.build()).scalars().all())
 
     def count(self) -> int:
         base = select(self._model)
         if self._conditions:
             base = base.where(and_(*self._conditions))
-        result = self._session.exec(select(func.count()).select_from(base.subquery()))
-        return result.one()
+        stmt = select(func.count()).select_from(base.subquery())
+        return self._session.execute(stmt).scalar_one()
 
     def update(self, **values: Any) -> int:
         stmt = sqlalchemy.update(self._model)
         if self._conditions:
             stmt = stmt.where(and_(*self._conditions))
-        stmt = stmt.values(**values)
-
-        result = self._session.exec(stmt)
-        return result.rowcount
+        return self._session.execute(stmt.values(**values)).rowcount
 
     def delete(self) -> int:
         stmt = sqlalchemy.delete(self._model)
         if self._conditions:
             stmt = stmt.where(and_(*self._conditions))
+        return self._session.execute(stmt).rowcount
 
-        result = self._session.exec(stmt)
-        return result.rowcount
-
-    def build(self) -> SelectOfScalar[ModelT]:
+    def build(self) -> Select[tuple[ModelT]]:
         statement = select(self._model).select_from(self._model)
-
         for join in self._joins:
             statement = statement.join(join)
-
         if self._conditions:
             statement = statement.where(and_(*self._conditions))
-
         for eager_load in self._eager_loads:
             statement = statement.options(eager_load)
-
         if self._limit is not None:
             statement = statement.limit(self._limit)
-
         if self._offset is not None:
             statement = statement.offset(self._offset)
-
-        if len(self._order_by) != 0:
+        if self._order_by:
             statement = statement.order_by(*self._order_by)
-
         return statement

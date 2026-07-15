@@ -222,6 +222,11 @@ name = "query"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "sqlalchemy" },
+]
+
+[package.optional-dependencies]
+sqlmodel = [
     { name = "sqlmodel" },
 ]
 
@@ -229,15 +234,21 @@ dependencies = [
 dev = [
     { name = "pytest" },
     { name = "ruff" },
+    { name = "sqlmodel" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "sqlmodel", specifier = ">=0.0.39" }]
+requires-dist = [
+    { name = "sqlalchemy", specifier = ">=2.0.51" },
+    { name = "sqlmodel", marker = "extra == 'sqlmodel'", specifier = ">=0.0.39" },
+]
+provides-extras = ["sqlmodel"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "ruff", specifier = ">=0.15.20" },
+    { name = "sqlmodel", specifier = ">=0.0.39" },
 ]
 
 [[package]]
