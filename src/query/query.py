@@ -56,6 +56,9 @@ class BaseQuery[ModelT]:
         self._order_by.extend(columns)
         return self
 
+    def _effective_conditions(self) -> list[ColumnElement]:
+        return self._conditions
+
     def get(self, id: Any) -> ModelT | None:
         return self._session.get(self._model, id)
 
@@ -72,30 +75,34 @@ class BaseQuery[ModelT]:
         return list(self._session.execute(self.build()).scalars().all())
 
     def count(self) -> int:
+        conditions = self._effective_conditions()
         base = select(self._model)
-        if self._conditions:
-            base = base.where(and_(*self._conditions))
+        if conditions:
+            base = base.where(and_(*conditions))
         stmt = select(func.count()).select_from(base.subquery())
         return self._session.execute(stmt).scalar_one()
 
     def update(self, **values: Any) -> int:
+        conditions = self._effective_conditions()
         stmt = sqlalchemy.update(self._model)
-        if self._conditions:
-            stmt = stmt.where(and_(*self._conditions))
+        if conditions:
+            stmt = stmt.where(and_(*conditions))
         return self._session.execute(stmt.values(**values)).rowcount
 
     def delete(self) -> int:
+        conditions = self._effective_conditions()
         stmt = sqlalchemy.delete(self._model)
-        if self._conditions:
-            stmt = stmt.where(and_(*self._conditions))
+        if conditions:
+            stmt = stmt.where(and_(*conditions))
         return self._session.execute(stmt).rowcount
 
     def build(self) -> Select[tuple[ModelT]]:
+        conditions = self._effective_conditions()
         statement = select(self._model).select_from(self._model)
         for join in self._joins:
             statement = statement.join(join)
-        if self._conditions:
-            statement = statement.where(and_(*self._conditions))
+        if conditions:
+            statement = statement.where(and_(*conditions))
         for eager_load in self._eager_loads:
             statement = statement.options(eager_load)
         if self._limit is not None:
