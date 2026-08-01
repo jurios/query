@@ -75,11 +75,14 @@ class BaseQuery[ModelT]:
         return list(self._session.execute(self.build()).scalars().all())
 
     def count(self) -> int:
+        statement = select(self._model).select_from(self._model)
+
+        for join in self._joins:
+            statement = statement.join(join)
         conditions = self._effective_conditions()
-        base = select(self._model)
         if conditions:
-            base = base.where(and_(*conditions))
-        stmt = select(func.count()).select_from(base.subquery())
+            statement = statement.where(and_(*conditions))
+        stmt = select(func.count()).select_from(statement.subquery())
         return self._session.execute(stmt).scalar_one()
 
     def update(self, **values: Any) -> int:

@@ -117,6 +117,32 @@ class TestCount:
 
         assert count == 2
 
+    def test_counts_with_a_join_on_a_related_column(self, backend: Backend) -> None:
+        # Only Grace (author id=2) wrote a book, so exactly one book matches.
+        count = (
+            BaseQuery(backend.session, backend.Book)
+            .join(backend.Book.author)
+            .where(backend.Author.name == "Grace")
+            .count()
+        )
+
+        assert count == 1
+
+    def test_counts_with_chained_joins_across_two_relationships(
+        self, backend: Backend
+    ) -> None:
+        # Author -> Book -> Review, filtering on the far end. Only Grace's book
+        # has the "A classic" review, so exactly one author matches.
+        count = (
+            BaseQuery(backend.session, backend.Author)
+            .join(backend.Author.books)
+            .join(backend.Book.reviews)
+            .where(backend.Review.content == "A classic")
+            .count()
+        )
+
+        assert count == 1
+
 
 class TestWhere:
     def test_filters_rows(self, backend: Backend) -> None:
