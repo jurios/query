@@ -44,6 +44,19 @@ class TestUpdate:
 
         assert affected == 0
 
+    def test_updates_only_the_joined_rows(self, backend: Backend) -> None:
+        affected = (
+            BaseQuery(backend.session, backend.Book)
+            .join(backend.Book.author)
+            .where(backend.Author.name == "Grace")
+            .update(title="Renamed")
+        )
+        backend.session.commit()
+
+        assert affected == 1
+        titles = {b.title for b in BaseQuery(backend.session, backend.Book).all()}
+        assert titles == {"Renamed", "Notes on the Engine"}
+
 
 class TestDelete:
     def test_deletes_matching_rows_and_returns_rowcount(self, backend: Backend) -> None:
@@ -78,3 +91,18 @@ class TestDelete:
 
         assert affected == 0
         assert BaseQuery(backend.session, backend.Author).count() == 3
+
+    def test_deletes_only_the_joined_rows(self, backend: Backend) -> None:
+        # Deleting through a join must remove only Grace's book and leave
+        # Ada's book ("Notes on the Engine") in place.
+        affected = (
+            BaseQuery(backend.session, backend.Book)
+            .join(backend.Book.author)
+            .where(backend.Author.name == "Grace")
+            .delete()
+        )
+        backend.session.commit()
+
+        assert affected == 1
+        titles = {b.title for b in BaseQuery(backend.session, backend.Book).all()}
+        assert titles == {"Notes on the Engine"}

@@ -4,7 +4,7 @@ from typing import Any, Self, TypeVar
 
 import sqlalchemy
 from pydantic import BaseModel
-from sqlalchemy import ColumnElement, Select, and_, func, select
+from sqlalchemy import ColumnElement, Select, and_, func, inspect, select, tuple_
 from sqlalchemy.orm import Session, selectinload
 
 from query.filter import BaseFilter
@@ -56,9 +56,6 @@ class BaseQuery[ModelT]:
         self._order_by.extend(columns)
         return self
 
-    def _effective_conditions(self) -> list[ColumnElement]:
-        return self._conditions
-
     def get(self, id: Any) -> ModelT | None:
         return self._session.get(self._model, id)
 
@@ -75,37 +72,21 @@ class BaseQuery[ModelT]:
         return list(self._session.execute(self.build()).scalars().all())
 
     def count(self) -> int:
-        statement = select(self._model).select_from(self._model)
-
-        for join in self._joins:
-            statement = statement.join(join)
-        conditions = self._effective_conditions()
-        if conditions:
-            statement = statement.where(and_(*conditions))
-        stmt = select(func.count()).select_from(statement.subquery())
+        stmt = select(func.count()).select_from(self._base_select().subquery())
         return self._session.execute(stmt).scalar_one()
 
     def update(self, **values: Any) -> int:
-        conditions = self._effective_conditions()
         stmt = sqlalchemy.update(self._model)
-        if conditions:
-            stmt = stmt.where(and_(*conditions))
+        stmt = self._scope_write(stmt)
         return self._session.execute(stmt.values(**values)).rowcount
 
     def delete(self) -> int:
-        conditions = self._effective_conditions()
         stmt = sqlalchemy.delete(self._model)
-        if conditions:
-            stmt = stmt.where(and_(*conditions))
+        stmt = self._scope_write(stmt)
         return self._session.execute(stmt).rowcount
 
     def build(self) -> Select[tuple[ModelT]]:
-        conditions = self._effective_conditions()
-        statement = select(self._model).select_from(self._model)
-        for join in self._joins:
-            statement = statement.join(join)
-        if conditions:
-            statement = statement.where(and_(*conditions))
+        statement = self._base_select()
         for eager_load in self._eager_loads:
             statement = statement.options(eager_load)
         if self._limit is not None:
@@ -115,3 +96,47 @@ class BaseQuery[ModelT]:
         if self._order_by:
             statement = statement.order_by(*self._order_by)
         return statement
+
+    def _effective_conditions(self) -> list[ColumnElement]:
+        return self._conditions
+
+    def _scope_write(self, stmt: Any) -> Any:
+        """Restrict a bulk ``UPDATE``/``DELETE`` to the builder's rows.
+
+        With joins we scope by primary key through a subquery; otherwise we
+        apply the accumulated conditions directly to keep the simple, common
+        path unchanged.
+        """
+        if self._joins:
+            return stmt.where(self._pk_scope())
+        conditions = self._effective_conditions()
+        if conditions:
+            return stmt.where(and_(*conditions))
+        return stmt
+
+    def _base_select(self) -> Select[tuple[ModelT]]:
+        """Model select with the accumulated joins and conditions applied.
+
+        This is the shared core behind reads, counts and scoped writes, so the
+        joins are honoured everywhere instead of only in ``build``.
+        """
+        statement = select(self._model).select_from(self._model)
+        for join in self._joins:
+            statement = statement.join(join)
+        conditions = self._effective_conditions()
+        if conditions:
+            statement = statement.where(and_(*conditions))
+        return statement
+
+    def _pk_scope(self) -> ColumnElement:
+        """Condition matching the builder's rows by primary key.
+
+        A bulk ``UPDATE``/``DELETE`` cannot carry a join portably, so when
+        joins are present we scope the write to the primary keys returned by
+        the join-aware select instead of dropping the joins silently.
+        """
+        pk_columns = list(inspect(self._model).primary_key)
+        pk_select = self._base_select().with_only_columns(*pk_columns)
+        if len(pk_columns) == 1:
+            return pk_columns[0].in_(pk_select)
+        return tuple_(*pk_columns).in_(pk_select)
