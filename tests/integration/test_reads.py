@@ -144,6 +144,46 @@ class TestCount:
         assert count == 1
 
 
+class TestExists:
+    def test_returns_true_when_a_row_matches(self, backend: Backend) -> None:
+        assert (
+            BaseQuery(backend.session, backend.Author)
+            .where(backend.Author.name == "Grace")
+            .exists()
+            is True
+        )
+
+    def test_returns_false_when_no_row_matches(self, backend: Backend) -> None:
+        assert (
+            BaseQuery(backend.session, backend.Author)
+            .where(backend.Author.name == "Nobody")
+            .exists()
+            is False
+        )
+
+    def test_returns_true_for_a_join_with_matching_rows(self, backend: Backend) -> None:
+        # Grace (id=2) has a book, so the inner join yields at least one row.
+        assert (
+            BaseQuery(backend.session, backend.Author)
+            .join(backend.Author.books)
+            .where(backend.Author.id == 2)
+            .exists()
+            is True
+        )
+
+    def test_returns_false_when_the_join_eliminates_all_rows(
+        self, backend: Backend
+    ) -> None:
+        # Ada (id=3) wrote no books, so the inner join drops her entirely.
+        assert (
+            BaseQuery(backend.session, backend.Author)
+            .join(backend.Author.books)
+            .where(backend.Author.id == 3)
+            .exists()
+            is False
+        )
+
+
 class TestWhere:
     def test_filters_rows(self, backend: Backend) -> None:
         rows = (

@@ -75,6 +75,10 @@ class BaseQuery[ModelT]:
         stmt = select(func.count()).select_from(self._base_select().subquery())
         return self._session.execute(stmt).scalar_one()
 
+    def exists(self) -> bool:
+        stmt = select(self._base_select().exists())
+        return bool(self._session.execute(stmt).scalar())
+
     def update(self, **values: Any) -> int:
         stmt = sqlalchemy.update(self._model)
         stmt = self._scope_write(stmt)
