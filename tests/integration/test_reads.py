@@ -214,6 +214,47 @@ class TestDistinct:
         assert BaseQuery(backend.session, backend.Author).distinct().count() == 3
 
 
+class TestPluck:
+    def test_returns_a_list_of_column_values(self, backend: Backend) -> None:
+        names = (
+            BaseQuery(backend.session, backend.Author)
+            .order_by(backend.Author.id)
+            .pluck(backend.Author.name)
+        )
+
+        assert names == ["Ada", "Grace", "Ada"]
+
+    def test_respects_where_conditions(self, backend: Backend) -> None:
+        ids = (
+            BaseQuery(backend.session, backend.Author)
+            .where(backend.Author.name == "Ada")
+            .order_by(backend.Author.id)
+            .pluck(backend.Author.id)
+        )
+
+        assert ids == [1, 3]
+
+    def test_plucks_a_column_across_a_join(self, backend: Backend) -> None:
+        titles = (
+            BaseQuery(backend.session, backend.Book)
+            .join(backend.Book.author)
+            .where(backend.Author.name == "Grace")
+            .pluck(backend.Book.title)
+        )
+
+        assert titles == ["Compiler Design"]
+
+    def test_respects_ordering_and_limit(self, backend: Backend) -> None:
+        names = (
+            BaseQuery(backend.session, backend.Author)
+            .order_by(backend.Author.id.desc())
+            .limit(2)
+            .pluck(backend.Author.name)
+        )
+
+        assert names == ["Ada", "Grace"]
+
+
 class TestWhere:
     def test_filters_rows(self, backend: Backend) -> None:
         rows = (

@@ -188,6 +188,7 @@ Terminal methods that execute the built statement and return results:
 | `get_one(id)` | `Model` | Look up by primary key. Raises `NoResultFound` when missing. |
 | `count()` | `int` | Count rows matching the accumulated conditions and joins. |
 | `exists()` | `bool` | Whether any row matches. Stops at the first hit, so it's cheaper than `count() > 0`. Honours joins and soft-delete scoping. |
+| `pluck(column)` | `list` | The values of a single column, e.g. `pluck(Author.name)` -> `["Ada", ...]`. Honours joins, ordering, `limit`/`offset` and `distinct()`. |
 
 ```python
 BaseQuery(session, Author).count()                       # -> 3
@@ -195,6 +196,7 @@ BaseQuery(session, Author).where(Author.name == "Ada").count()  # -> 2
 BaseQuery(session, Author).get(1)                        # -> Author | None
 BaseQuery(session, Author).where(Author.name == "Grace").one()  # -> Author
 BaseQuery(session, Author).where(Author.name == "Grace").exists()  # -> True
+BaseQuery(session, Author).order_by(Author.id).pluck(Author.name)  # -> ["Ada", "Grace", "Ada"]
 ```
 
 ### Writing

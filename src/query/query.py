@@ -76,6 +76,11 @@ class BaseQuery[ModelT]:
     def all(self) -> list[ModelT]:
         return list(self._session.execute(self.build()).scalars().all())
 
+    def pluck(self, column: Any) -> list[Any]:
+        statement = self._base_select().with_only_columns(column)
+        statement = self._apply_ordering_and_pagination(statement)
+        return list(self._session.execute(statement).scalars().all())
+
     def count(self) -> int:
         stmt = select(func.count()).select_from(self._base_select().subquery())
         return self._session.execute(stmt).scalar_one()
@@ -98,6 +103,12 @@ class BaseQuery[ModelT]:
         statement = self._base_select()
         for eager_load in self._eager_loads:
             statement = statement.options(eager_load)
+        return self._apply_ordering_and_pagination(statement)
+
+    def _effective_conditions(self) -> list[ColumnElement]:
+        return self._conditions
+
+    def _apply_ordering_and_pagination(self, statement: Select[Any]) -> Select[Any]:
         if self._limit is not None:
             statement = statement.limit(self._limit)
         if self._offset is not None:
@@ -105,9 +116,6 @@ class BaseQuery[ModelT]:
         if self._order_by:
             statement = statement.order_by(*self._order_by)
         return statement
-
-    def _effective_conditions(self) -> list[ColumnElement]:
-        return self._conditions
 
     def _scope_write(self, stmt: Any) -> Any:
         """Restrict a bulk ``UPDATE``/``DELETE`` to the builder's rows.
