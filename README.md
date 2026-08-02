@@ -137,6 +137,7 @@ hits the database until a terminal read/write method is called.
 | `limit(value)` | Cap the number of rows. The **last** call wins. |
 | `offset(value)` | Skip rows (pagination). The **last** call wins. |
 | `join(*targets)` | Join related entities so you can filter on their columns (e.g. `join(Book.author)`). Repeated/multiple targets chain. |
+| `distinct()` | Deduplicate rows. Handy after a to-many `join`, which repeats parent rows; it also makes `count()` count distinct rows. |
 | `eager(*relationships)` | Eager-load relationships with `selectinload`. Pass several arguments to load a **nested** chain (e.g. `eager(Author.books, Book.reviews)`). |
 | `filter(filter_class, params)` | Apply a declarative [filter](#declarative-filters) from a Pydantic params object. |
 
@@ -157,6 +158,8 @@ page = (
 books = (
     BaseQuery(session, Book)
     .join(Book.author)
+    .join(Book.reviews)
+    .distinct()
     .where(Author.name == "Grace")
     .all()
 )

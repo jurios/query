@@ -184,6 +184,36 @@ class TestExists:
         )
 
 
+class TestDistinct:
+    def test_deduplicates_rows_from_a_to_many_join(self, backend: Backend) -> None:
+        # Ada (id=1) has one book with two reviews, so across the
+        # Author -> books -> reviews join she would otherwise appear twice.
+        rows = (
+            BaseQuery(backend.session, backend.Author)
+            .join(backend.Author.books)
+            .join(backend.Book.reviews)
+            .distinct()
+            .all()
+        )
+
+        assert sorted(author.id for author in rows) == [1, 2]
+
+    def test_count_reflects_distinct_rows(self, backend: Backend) -> None:
+        count = (
+            BaseQuery(backend.session, backend.Author)
+            .join(backend.Author.books)
+            .join(backend.Book.reviews)
+            .distinct()
+            .count()
+        )
+
+        assert count == 2
+
+    def test_is_a_noop_without_duplicates(self, backend: Backend) -> None:
+        # No join, no duplicates: distinct must not change the result.
+        assert BaseQuery(backend.session, backend.Author).distinct().count() == 3
+
+
 class TestWhere:
     def test_filters_rows(self, backend: Backend) -> None:
         rows = (

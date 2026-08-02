@@ -22,6 +22,7 @@ class BaseQuery[ModelT]:
         self._limit: int | None = None
         self._offset: int | None = None
         self._order_by: list = []
+        self._distinct: bool = False
 
     def join(self, *targets) -> Self:
         self._joins.extend(targets)
@@ -37,6 +38,10 @@ class BaseQuery[ModelT]:
 
     def limit(self, value: int) -> Self:
         self._limit = value
+        return self
+
+    def distinct(self) -> Self:
+        self._distinct = True
         return self
 
     def offset(self, value: int) -> Self:
@@ -130,6 +135,10 @@ class BaseQuery[ModelT]:
         conditions = self._effective_conditions()
         if conditions:
             statement = statement.where(and_(*conditions))
+
+        if self._distinct:
+            statement = statement.distinct()
+
         return statement
 
     def _pk_scope(self) -> ColumnElement:
