@@ -23,6 +23,7 @@ class BaseQuery[ModelT]:
         self._offset: int | None = None
         self._order_by: list = []
         self._distinct: bool = False
+        self._for_update: dict[str, Any] | None = None
 
     def join(self, *targets) -> Self:
         self._joins.extend(targets)
@@ -61,6 +62,23 @@ class BaseQuery[ModelT]:
         self._order_by.extend(columns)
         return self
 
+    def lock_for_update(
+        self, *, nowait: bool = False, skip_locked: bool = False, of: Any = None
+    ) -> Self:
+        self._for_update = {"nowait": nowait, "skip_locked": skip_locked, "of": of}
+        return self
+
+    def shared_lock(
+        self, *, nowait: bool = False, skip_locked: bool = False, of: Any = None
+    ) -> Self:
+        self._for_update = {
+            "read": True,
+            "nowait": nowait,
+            "skip_locked": skip_locked,
+            "of": of,
+        }
+        return self
+
     def get(self, id: Any) -> ModelT | None:
         return self._session.get(self._model, id)
 
@@ -79,6 +97,7 @@ class BaseQuery[ModelT]:
     def pluck(self, column: Any) -> list[Any]:
         statement = self._base_select().with_only_columns(column)
         statement = self._apply_ordering_and_pagination(statement)
+        statement = self._apply_lock(statement)
         return list(self._session.execute(statement).scalars().all())
 
     def count(self) -> int:
@@ -103,7 +122,9 @@ class BaseQuery[ModelT]:
         statement = self._base_select()
         for eager_load in self._eager_loads:
             statement = statement.options(eager_load)
-        return self._apply_ordering_and_pagination(statement)
+
+        statement = self._apply_ordering_and_pagination(statement)
+        return self._apply_lock(statement)
 
     def _effective_conditions(self) -> list[ColumnElement]:
         return self._conditions
@@ -130,6 +151,11 @@ class BaseQuery[ModelT]:
         if conditions:
             return stmt.where(and_(*conditions))
         return stmt
+
+    def _apply_lock(self, statement: Select[Any]) -> Select[Any]:
+        if self._for_update is not None:
+            statement = statement.with_for_update(**self._for_update)
+        return statement
 
     def _base_select(self) -> Select[tuple[ModelT]]:
         """Model select with the accumulated joins and conditions applied.
