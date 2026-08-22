@@ -31,6 +31,8 @@ active_admins = (
 - **Soft deletes** — an opt-in mixin turns `delete()` into a soft delete,
   scopes reads to active rows by default, and keeps a `force_delete()` escape
   hatch.
+- **Row-level locks** — `lock_for_update()` and `shared_lock()` add
+  `FOR UPDATE` / `FOR SHARE` to reads, with `nowait`, `skip_locked` and `of`.
 - **No magic under the reads** — `build()` hands you the underlying
   `Select` whenever you need to drop down to raw SQLAlchemy.
 
@@ -140,6 +142,8 @@ hits the database until a terminal read/write method is called.
 | `distinct()` | Deduplicate rows. Handy after a to-many `join`, which repeats parent rows; it also makes `count()` count distinct rows. |
 | `eager(*relationships)` | Eager-load relationships with `selectinload`. Pass several arguments to load a **nested** chain (e.g. `eager(Author.books, Book.reviews)`). |
 | `filter(filter_class, params)` | Apply a declarative [filter](#declarative-filters) from a Pydantic params object. |
+| `lock_for_update(**opts)` | Take an exclusive row [lock](#locks) (`FOR UPDATE`) on the matching rows. |
+| `shared_lock(**opts)` | Take a shared row [lock](#locks) (`FOR SHARE`) on the matching rows. |
 
 ```python
 page = (
@@ -233,6 +237,59 @@ expose:
 stmt = BaseQuery(session, Author).where(Author.name == "Ada").build()
 rows = session.execute(stmt).scalars().all()
 ```
+
+## Locks
+
+`lock_for_update()` and `shared_lock()` take a **row-level lock** on the rows a
+read matches, emitting `SELECT ... FOR UPDATE` / `FOR SHARE`. They accumulate
+state like any other builder method and apply when the statement is built, so
+they chain in any order and flow through `first()`, `one()` and `all()`.
+
+| Method | Behavior |
+| --- | --- |
+| `lock_for_update()` | Exclusive lock (`FOR UPDATE`): others cannot read-for-update or write the rows until this transaction ends. |
+| `shared_lock()` | Shared lock (`FOR SHARE`): others may still read the rows but not lock them for update. |
+
+Both accept the same keyword options, forwarded to SQLAlchemy's
+`Select.with_for_update`:
+
+| Option | Effect |
+| --- | --- |
+| `nowait=True` | Fail immediately instead of waiting if a row is already locked. |
+| `skip_locked=True` | Silently skip rows that are already locked. |
+| `of=Entity` | Restrict the lock to a specific table/entity (useful with `join`). |
+
+```python
+# Read a row and hold it for the rest of the transaction.
+user = (
+    BaseQuery(session, User)
+    .where(User.id == user_id)
+    .lock_for_update()
+    .one()
+)
+user.credits -= 1
+session.commit()  # the lock is released when the transaction ends
+
+# A work-queue pattern: grab the next free job, skipping locked ones.
+job = (
+    BaseQuery(session, Job)
+    .where(Job.status == "pending")
+    .order_by(Job.created_at)
+    .lock_for_update(skip_locked=True)
+    .first()
+)
+```
+
+A few things to keep in mind:
+
+- A lock only means something **inside a transaction**, and is held until you
+  `commit()` or `rollback()`. Outside one it has no lasting effect.
+- Locks are a **database feature**, not something the builder emulates. Backends
+  that don't support row locking silently ignore the clause, so the query still runs but no
+  lock is taken. Use PostgreSQL or MySQL for real locking.
+- `eager()` uses `selectinload`, which issues **separate** queries for the
+  related rows; those follow-up selects are **not** locked. If you need the
+  related rows locked too, reach them through `join` instead.
 
 ## Custom model queries and scopes
  
@@ -452,4 +509,3 @@ The integration suites under `tests/integration/` exercise reads, writes, and
 soft deletes against a real in-memory SQLite database through both ORMs, so the
 ORM-agnostic behavior is verified end to end. SQLite needs no extra system
 package — Python ships the `sqlite3` module compiled in.
-
